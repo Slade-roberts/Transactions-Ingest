@@ -1,0 +1,26 @@
+[
+  {
+    "TransactionId": 101,
+    "CardNumber": "4111111111111111",
+    "LocationCode": "NYC001",
+    "ProductName": "Coffee",
+    "Amount": 3.50,
+    "TransactionTime": "2026-03-18T08:15:00Z"
+  },
+  {
+    "TransactionId": 205,
+    "CardNumber": "5500000000000004",
+    "LocationCode": "SFO002",
+    "ProductName": "Sandwich",
+    "Amount": 7.25,
+    "TransactionTime": "2026-03-18T09:20:00Z"
+  },
+  {
+    "TransactionId": 303,
+    "CardNumber": "340000000000009",
+    "LocationCode": "LAX003",
+    "ProductName": "T-shirt",
+    "Amount": 19.99,
+    "TransactionTime": "2026-03-17T10:00:00Z"
+  }
+]
