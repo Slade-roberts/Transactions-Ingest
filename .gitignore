@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+
+# IDE files
+.vs/
+*.user
+*.suo
+
+# Local runtime artifacts
+*.db
+*.db-shm
+*.db-wal
+
+# Test results
+TestResults/
+coverage/
