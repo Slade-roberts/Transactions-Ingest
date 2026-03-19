@@ -83,7 +83,7 @@ dotnet test TransactionsIngest.slnx
 
 - Estimated hours: `<7>`
 - Actual hours: `<6>`
-- Repository link: `<fill in>`
+- Repository link: `<https://github.com/Slade-roberts/Transactions-Ingest>`
 
 ## Possible future improvements
 
