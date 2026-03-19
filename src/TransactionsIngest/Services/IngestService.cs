@@ -8,6 +8,17 @@ using TransactionsIngest.Services.Interfaces;
 
 namespace TransactionsIngest.Services;
 
+/// <summary>
+/// Core transaction ingestion service implementing idempotent upsert with field-level auditing.
+/// </summary>
+/// <remarks>
+/// Orchestrates the complete ingestion workflow:
+/// 1. Load transaction snapshot from feed
+/// 2. For each transaction in snapshot: insert new records with initial audit trail or update existing
+/// 3. Revoke transactions within 24-hour window that are absent from snapshot
+/// 4. Optionally finalize records older than 24 hours (immutable thereafter)
+/// 5. All operations wrapped in a single database transaction for ACID consistency
+/// </remarks>
 public class IngestService : IIngestService
 {
     private readonly AppDbContext _db;
@@ -17,6 +28,7 @@ public class IngestService : IIngestService
     private readonly CardPrivacyService _cardPrivacy;
     private readonly ILogger<IngestService> _logger;
 
+    /// <summary>Initializes the service with required dependencies.</summary>
     public IngestService(
         AppDbContext db,
         IFeedLoader feedLoader,
@@ -33,6 +45,8 @@ public class IngestService : IIngestService
         _logger = logger;
     }
 
+    /// <summary>Executes the complete idempotent transaction ingestion workflow.</summary>
+    /// <remarks>Runs upsert, revocation, and optional finalization in a single atomic transaction.</remarks>
     public async Task RunAsync()
     {
         var now = _timeProvider.UtcNow;
@@ -70,12 +84,16 @@ public class IngestService : IIngestService
 
                     var changed = false;
 
+                    // Diff each tracked field against the incoming value; CompareAndUpdate writes an
+                    // audit entry and applies the update only if the stringified values differ
                     changed |= CompareAndUpdate(existingTxn, nameof(Transaction.CardLast4), existingTxn.CardLast4, last4, v => existingTxn.CardLast4 = v);
                     changed |= CompareAndUpdate(existingTxn, nameof(Transaction.CardHash), existingTxn.CardHash, hash, v => existingTxn.CardHash = v);
                     changed |= CompareAndUpdate(existingTxn, nameof(Transaction.LocationCode), existingTxn.LocationCode, dto.LocationCode, v => existingTxn.LocationCode = v);
                     changed |= CompareAndUpdate(existingTxn, nameof(Transaction.ProductName), existingTxn.ProductName, dto.ProductName, v => existingTxn.ProductName = v);
                     changed |= CompareAndUpdate(existingTxn, nameof(Transaction.Amount), existingTxn.Amount.ToString("F2", CultureInfo.InvariantCulture), dto.Amount.ToString("F2", CultureInfo.InvariantCulture), v => existingTxn.Amount = decimal.Parse(v, CultureInfo.InvariantCulture));
 
+                    // SQLite returns DateTime with Unspecified kind; normalise before comparing to avoid
+                    // spurious mismatch between an Unspecified and an explicit UTC value
                     var storedTimeUtc = NormalizeStoredUtc(existingTxn.TransactionTime);
                     if (storedTimeUtc != txnTime)
                     {
@@ -109,7 +127,8 @@ public class IngestService : IIngestService
                     _db.Transactions.Add(newTxn);
                     _logger.LogInformation("Inserted transaction {id}", newTxn.TransactionId);
 
-                    // Record initial field-level audits for new row
+                    // Capture initial field values in the audit log so the full change history is
+                    // traceable from the moment of first insertion, not just subsequent updates
                     AddAudit(newTxn.TransactionId, nameof(Transaction.CardLast4), null, newTxn.CardLast4, now);
                     if (newTxn.CardHash is not null)
                         AddAudit(newTxn.TransactionId, nameof(Transaction.CardHash), null, newTxn.CardHash, now);
@@ -161,6 +180,7 @@ public class IngestService : IIngestService
         }
     }
 
+    /// <summary>Compares field values, audits changes, and applies updates.</summary>
     private bool CompareAndUpdate<T>(Transaction entity, string fieldName, T? oldValue, T? newValue, Action<string> apply)
     {
         var oldStr = oldValue?.ToString();
@@ -173,6 +193,7 @@ public class IngestService : IIngestService
         return true;
     }
 
+    /// <summary>Creates an audit record only if old and new values differ.</summary>
     private void AddAudit(int transactionId, string field, string? oldValue, string? newValue, DateTime when)
     {
         // Avoid writing audits where there is no effective change
@@ -192,6 +213,7 @@ public class IngestService : IIngestService
         _db.TransactionAudits.Add(audit);
     }
 
+    /// <summary>Normalizes incoming timestamp to UTC for consistent storage and comparison.</summary>
     private static DateTime NormalizeToUtc(DateTime value)
     {
         return value.Kind switch

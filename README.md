@@ -81,8 +81,8 @@ dotnet test TransactionsIngest.slnx
 
 ## Time tracking (for submission)
 
-- Estimated hours: `<fill in>`
-- Actual hours: `<fill in>`
+- Estimated hours: `<7>`
+- Actual hours: `<6>`
 - Repository link: `<fill in>`
 
 ## Possible future improvements
